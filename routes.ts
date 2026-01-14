@@ -110,6 +110,7 @@ declare module "express-session" {
 
 // Middleware to check if user is authenticated
 function requireAuth(req: Request, res: Response, next: Function) {
+  console.log(req.session.userId);
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }

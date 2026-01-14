@@ -5,6 +5,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { initializeDatabase } from "./db";
 import { sessionMiddleware } from "./session";
+import cors from "cors";
 
 const app = express();
 const httpServer = createServer(app);
@@ -14,6 +15,13 @@ declare module "http" {
     rawBody: unknown;
   }
 }
+
+app.use(
+  cors({
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  })
+);
 
 app.use(
   express.json({
