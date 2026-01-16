@@ -153,52 +153,6 @@ export async function registerRoutes(
     }
   });
 
-  // Change password
-  app.post(
-    "/api/auth/change-password",
-    requireAuth,
-    async (req: Request, res: Response) => {
-      try {
-        const { currentPassword, newPassword } = req.body;
-
-        if (!currentPassword || !newPassword) {
-          return res
-            .status(400)
-            .json({ message: "Current and new passwords are required" });
-        }
-
-        if (newPassword.length < 4) {
-          return res
-            .status(400)
-            .json({ message: "Password must be at least 4 characters" });
-        }
-
-        const user = await storage.getUser(req.session.userId!);
-        if (!user) {
-          return res.status(404).json({ message: "User not found" });
-        }
-
-        const validPassword = await bcrypt.compare(
-          currentPassword,
-          user.password
-        );
-        if (!validPassword) {
-          return res
-            .status(401)
-            .json({ message: "Current password is incorrect" });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await storage.updateUserPassword(user.id, hashedPassword);
-
-        res.json({ success: true });
-      } catch (error) {
-        console.error("Change password error:", error);
-        res.status(500).json({ message: "Internal server error" });
-      }
-    }
-  );
-
   // ========== User Management Routes (Admin only) ==========
 
   // Get all users

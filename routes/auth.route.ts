@@ -12,6 +12,6 @@ routes.post("/login", Login);
 
 routes.post("/logout", Logout);
 
-routes.post("change-password", requireAuth, ChangePassword);
+routes.post("/change-password", requireAuth, ChangePassword);
 
 export default routes;

@@ -91,6 +91,33 @@ export class WebSocketServer {
     });
   }
 
+  /**
+   * Close the WebSocket server gracefully
+   */
+  public close(): void {
+    console.log("Closing WebSocket server...");
+
+    // Close all active connections
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.close(1001, "Server shutting down");
+      }
+    });
+
+    // Close the server
+    this.wss.close();
+
+    // Clean up services
+    this.cleanup();
+  }
+
+  /**
+   * Get the number of active connections
+   */
+  public getConnectionCount(): number {
+    return this.wss.clients.size;
+  }
+
   cleanup(): void {
     this.connectionService.cleanup();
   }
