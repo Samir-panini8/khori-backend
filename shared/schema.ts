@@ -1,5 +1,14 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, boolean, jsonb, bigint, integer } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  varchar,
+  timestamp,
+  boolean,
+  jsonb,
+  bigint,
+  integer,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -11,7 +20,9 @@ export const session = pgTable("session", {
 });
 
 export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role").notNull().default("teacher"),
@@ -26,10 +37,14 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
 export const boards = pgTable("boards", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   roomCode: text("room_code").notNull().unique(), // Auto-generated 9-character alphanumeric code
   title: text("title").notNull().default("Untitled Room"), // User-friendly room title (not unique)
-  creatorId: varchar("creator_id").notNull().references(() => users.id),
+  creatorId: varchar("creator_id")
+    .notNull()
+    .references(() => users.id),
   lecturerId: varchar("lecturer_id").references(() => users.id), // Lecturer for this room (defaults to creator)
   startTime: timestamp("start_time").notNull().defaultNow(),
   endTime: timestamp("end_time"),
@@ -49,8 +64,12 @@ export type InsertBoard = z.infer<typeof insertBoardSchema>;
 export type Board = typeof boards.$inferSelect;
 
 export const boardData = pgTable("board_data", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boardId: varchar("board_id").notNull().references(() => boards.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id")
+    .notNull()
+    .references(() => boards.id),
   userId: varchar("user_id").notNull(),
   userName: text("user_name").notNull(),
   linesData: jsonb("lines_data").notNull().default([]),
@@ -67,22 +86,28 @@ export type BoardData = typeof boardData.$inferSelect;
 
 // Quiz categories (Math, Physics, etc.)
 export const quizCategories = pgTable("quiz_categories", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertQuizCategorySchema = createInsertSchema(quizCategories).omit({
-  id: true,
-  createdAt: true,
-});
+export const insertQuizCategorySchema = createInsertSchema(quizCategories).omit(
+  {
+    id: true,
+    createdAt: true,
+  }
+);
 
 export type InsertQuizCategory = z.infer<typeof insertQuizCategorySchema>;
 export type QuizCategory = typeof quizCategories.$inferSelect;
 
 // Quiz classes/levels (Level 1, Level 2, etc.)
 export const quizClasses = pgTable("quiz_classes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -97,8 +122,12 @@ export type QuizClass = typeof quizClasses.$inferSelect;
 
 // Quiz library - questions created by teachers/admins
 export const quizzes = pgTable("quizzes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  creatorId: varchar("creator_id").notNull().references(() => users.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  creatorId: varchar("creator_id")
+    .notNull()
+    .references(() => users.id),
   categoryId: varchar("category_id").references(() => quizCategories.id),
   classId: varchar("class_id").references(() => quizClasses.id),
   questionText: text("question_text").notNull(),
@@ -119,9 +148,15 @@ export type Quiz = typeof quizzes.$inferSelect;
 
 // Quiz sessions - active quiz instances within a board
 export const quizSessions = pgTable("quiz_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boardId: varchar("board_id").notNull().references(() => boards.id),
-  quizId: varchar("quiz_id").notNull().references(() => quizzes.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id")
+    .notNull()
+    .references(() => boards.id),
+  quizId: varchar("quiz_id")
+    .notNull()
+    .references(() => quizzes.id),
   status: text("status").notNull().default("draft"), // "draft", "finalized", "active", "closed"
   postedAt: timestamp("posted_at"),
   closesAt: timestamp("closes_at"),
@@ -138,8 +173,12 @@ export type QuizSession = typeof quizSessions.$inferSelect;
 
 // Quiz responses - participant answers
 export const quizResponses = pgTable("quiz_responses", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull().references(() => quizSessions.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id")
+    .notNull()
+    .references(() => quizSessions.id),
   participantId: varchar("participant_id").notNull(),
   participantName: text("participant_name").notNull(),
   answer: text("answer"), // Choice ID for MC, or integer value as string
@@ -157,43 +196,69 @@ export type QuizResponse = typeof quizResponses.$inferSelect;
 
 // Student attendance - tracks when students join rooms
 export const studentAttendance = pgTable("student_attendance", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boardId: varchar("board_id").notNull().references(() => boards.id),
-  studentId: varchar("student_id").notNull().references(() => users.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id")
+    .notNull()
+    .references(() => boards.id),
+  studentId: varchar("student_id")
+    .notNull()
+    .references(() => users.id),
   joinedAt: timestamp("joined_at").notNull().defaultNow(),
   leftAt: timestamp("left_at"),
   timeSpentSeconds: integer("time_spent_seconds").default(0),
 });
 
-export const insertStudentAttendanceSchema = createInsertSchema(studentAttendance).omit({
+export const insertStudentAttendanceSchema = createInsertSchema(
+  studentAttendance
+).omit({
   id: true,
 });
 
-export type InsertStudentAttendance = z.infer<typeof insertStudentAttendanceSchema>;
+export type InsertStudentAttendance = z.infer<
+  typeof insertStudentAttendanceSchema
+>;
 export type StudentAttendance = typeof studentAttendance.$inferSelect;
 
 // Teacher attendance - tracks when teachers are in their rooms
 export const teacherAttendance = pgTable("teacher_attendance", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boardId: varchar("board_id").notNull().references(() => boards.id),
-  teacherId: varchar("teacher_id").notNull().references(() => users.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id")
+    .notNull()
+    .references(() => boards.id),
+  teacherId: varchar("teacher_id")
+    .notNull()
+    .references(() => users.id),
   joinedAt: timestamp("joined_at").notNull().defaultNow(),
   leftAt: timestamp("left_at"),
   timeSpentSeconds: integer("time_spent_seconds").default(0),
 });
 
-export const insertTeacherAttendanceSchema = createInsertSchema(teacherAttendance).omit({
+export const insertTeacherAttendanceSchema = createInsertSchema(
+  teacherAttendance
+).omit({
   id: true,
 });
 
-export type InsertTeacherAttendance = z.infer<typeof insertTeacherAttendanceSchema>;
+export type InsertTeacherAttendance = z.infer<
+  typeof insertTeacherAttendanceSchema
+>;
 export type TeacherAttendance = typeof teacherAttendance.$inferSelect;
 
 // Lecture recordings - stores audio recording metadata and data
 export const lectureRecordings = pgTable("lecture_recordings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boardId: varchar("board_id").notNull().references(() => boards.id),
-  lecturerId: varchar("lecturer_id").notNull().references(() => users.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id")
+    .notNull()
+    .references(() => boards.id),
+  lecturerId: varchar("lecturer_id")
+    .notNull()
+    .references(() => users.id),
   status: text("status").notNull().default("recording"), // "recording" | "completed" | "transcribed"
   startedAt: timestamp("started_at").notNull().defaultNow(),
   endedAt: timestamp("ended_at"),
@@ -201,38 +266,58 @@ export const lectureRecordings = pgTable("lecture_recordings", {
   durationMs: integer("duration_ms"),
 });
 
-export const insertLectureRecordingSchema = createInsertSchema(lectureRecordings).omit({
+export const insertLectureRecordingSchema = createInsertSchema(
+  lectureRecordings
+).omit({
   id: true,
   startedAt: true,
 });
 
-export type InsertLectureRecording = z.infer<typeof insertLectureRecordingSchema>;
+export type InsertLectureRecording = z.infer<
+  typeof insertLectureRecordingSchema
+>;
 export type LectureRecording = typeof lectureRecordings.$inferSelect;
 
 // Lecture transcripts - stores transcribed text from audio
 export const lectureTranscripts = pgTable("lecture_transcripts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  recordingId: varchar("recording_id").notNull().references(() => lectureRecordings.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  recordingId: varchar("recording_id")
+    .notNull()
+    .references(() => lectureRecordings.id),
   transcriptText: text("transcript_text").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertLectureTranscriptSchema = createInsertSchema(lectureTranscripts).omit({
+export const insertLectureTranscriptSchema = createInsertSchema(
+  lectureTranscripts
+).omit({
   id: true,
   createdAt: true,
 });
 
-export type InsertLectureTranscript = z.infer<typeof insertLectureTranscriptSchema>;
+export type InsertLectureTranscript = z.infer<
+  typeof insertLectureTranscriptSchema
+>;
 export type LectureTranscript = typeof lectureTranscripts.$inferSelect;
 
 // AI Chat Sessions - created by lecturer to start chat about a lecture
 export const aiChatSessions = pgTable("ai_chat_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  boardId: varchar("board_id").notNull().references(() => boards.id),
-  transcriptId: varchar("transcript_id").references(() => lectureTranscripts.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  boardId: varchar("board_id")
+    .notNull()
+    .references(() => boards.id),
+  transcriptId: varchar("transcript_id").references(
+    () => lectureTranscripts.id
+  ),
   boardImageData: text("board_image_data"), // Base64 encoded board snapshot
   context: text("context"), // Teacher-provided context (age, key ideas, etc.)
-  createdBy: varchar("created_by").notNull().references(() => users.id),
+  createdBy: varchar("created_by")
+    .notNull()
+    .references(() => users.id),
   status: text("status").notNull().default("draft"), // "draft" | "active" | "completed"
   timerSeconds: integer("timer_seconds").notNull().default(300), // 5 minutes default
   startedAt: timestamp("started_at"),
@@ -240,7 +325,9 @@ export const aiChatSessions = pgTable("ai_chat_sessions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertAiChatSessionSchema = createInsertSchema(aiChatSessions).omit({
+export const insertAiChatSessionSchema = createInsertSchema(
+  aiChatSessions
+).omit({
   id: true,
   createdAt: true,
 });
@@ -250,8 +337,12 @@ export type AiChatSession = typeof aiChatSessions.$inferSelect;
 
 // AI Chat Participants - tracks students participating in chat sessions
 export const aiChatParticipants = pgTable("ai_chat_participants", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull().references(() => aiChatSessions.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id")
+    .notNull()
+    .references(() => aiChatSessions.id),
   participantId: varchar("participant_id").notNull(),
   participantName: text("participant_name").notNull(),
   status: text("status").notNull().default("pending"), // "pending" | "started" | "completed"
@@ -260,24 +351,34 @@ export const aiChatParticipants = pgTable("ai_chat_participants", {
   score: integer("score"), // Understanding score 0-100
 });
 
-export const insertAiChatParticipantSchema = createInsertSchema(aiChatParticipants).omit({
+export const insertAiChatParticipantSchema = createInsertSchema(
+  aiChatParticipants
+).omit({
   id: true,
 });
 
-export type InsertAiChatParticipant = z.infer<typeof insertAiChatParticipantSchema>;
+export type InsertAiChatParticipant = z.infer<
+  typeof insertAiChatParticipantSchema
+>;
 export type AiChatParticipant = typeof aiChatParticipants.$inferSelect;
 
 // AI Chat Messages - individual messages in a chat conversation
 export const aiChatMessages = pgTable("ai_chat_messages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull().references(() => aiChatSessions.id),
+  id: varchar("id")
+    .primaryKey()
+    .default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id")
+    .notNull()
+    .references(() => aiChatSessions.id),
   participantId: varchar("participant_id").notNull(),
   role: text("role").notNull(), // "user" | "assistant"
   content: text("content").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertAiChatMessageSchema = createInsertSchema(aiChatMessages).omit({
+export const insertAiChatMessageSchema = createInsertSchema(
+  aiChatMessages
+).omit({
   id: true,
   createdAt: true,
 });
