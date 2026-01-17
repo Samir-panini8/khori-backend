@@ -3,6 +3,7 @@ import {
   createUser,
   deleteUser,
   updateUser,
+  GetUsersByRole,
 } from "../controller/user.controller.ts";
 import requireAuth from "../middleware/Authentication.ts";
 
@@ -13,5 +14,7 @@ routes.post("/create", requireAuth, createUser);
 routes.patch("/update", requireAuth, updateUser);
 
 routes.delete("/delete/:userId", requireAuth, deleteUser);
+
+routes.get("/users-by-role", requireAuth, GetUsersByRole);
 
 export default routes;

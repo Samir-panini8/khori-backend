@@ -2,7 +2,6 @@ import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import bcrypt from "bcryptjs";
 import {
-  insertUserSchema,
   insertBoardSchema,
   insertBoardDataSchema,
   insertQuizSchema,
@@ -77,7 +76,7 @@ function scheduleBoardUpdate(
   roomCode: string,
   userId: string,
   userName: string,
-  lines: unknown[]
+  lines: unknown[],
 ) {
   const key = `${roomCode}:${userId}`;
 
@@ -90,7 +89,7 @@ function scheduleBoardUpdate(
   // Schedule new debounced write
   const timer = setTimeout(
     () => flushBoardUpdate(key),
-    BOARD_UPDATE_DEBOUNCE_MS
+    BOARD_UPDATE_DEBOUNCE_MS,
   );
   pendingBoardUpdates.set(key, { roomCode, userId, userName, lines, timer });
 }
@@ -118,7 +117,7 @@ async function requireAdmin(req: Request, res: Response, next: Function) {
 
 export async function registerRoutes(
   httpServer: Server,
-  app: Express
+  app: Express,
 ): Promise<Server> {
   // Initialize default admin user if not exists
   const adminUser = await storage.getUserByUsername("admin");
@@ -130,129 +129,6 @@ export async function registerRoutes(
       role: "admin",
     });
   }
-
-  // ========== Authentication Routes ==========
-
-  // Check session
-  app.get("/api/auth/me", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const user = await storage.getUser(req.session.userId!);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json({
-        id: user.id,
-        username: user.username,
-        role: user.role,
-        screenName: user.screenName,
-      });
-    } catch (error) {
-      console.error("Get user error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // ========== User Management Routes (Admin only) ==========
-
-  // Get all users
-  app.get("/api/users", requireAdmin, async (req: Request, res: Response) => {
-    try {
-      const users = await storage.getAllUsers();
-      res.json(
-        users.map((u) => ({
-          id: u.id,
-          username: u.username,
-          role: u.role,
-          screenName: u.screenName,
-        }))
-      );
-    } catch (error) {
-      console.error("Get users error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
-
-  // Delete user (admin only)
-  app.delete(
-    "/api/users/:id",
-    requireAdmin,
-    async (req: Request, res: Response) => {
-      try {
-        const user = await storage.getUser(req.params.id);
-        if (!user) {
-          return res.status(404).json({ error: "User not found" });
-        }
-
-        if (user.role === "admin") {
-          return res.status(403).json({ error: "Cannot delete admin user" });
-        }
-
-        await storage.deleteUser(req.params.id);
-        res.json({ success: true });
-      } catch (error) {
-        console.error("Delete user error:", error);
-        res.status(500).json({ error: "Internal server error" });
-      }
-    }
-  );
-
-  // Update user screen name (admin only)
-  app.patch(
-    "/api/users/:id/screen-name",
-    requireAdmin,
-    async (req: Request, res: Response) => {
-      try {
-        const user = await storage.getUser(req.params.id);
-        if (!user) {
-          return res.status(404).json({ error: "User not found" });
-        }
-
-        const { screenName } = req.body;
-        await storage.updateUserScreenName(req.params.id, screenName || null);
-        res.json({ success: true, screenName: screenName || null });
-      } catch (error) {
-        console.error("Update screen name error:", error);
-        res.status(500).json({ error: "Internal server error" });
-      }
-    }
-  );
-
-  // Create user (teacher)
-  app.post("/api/users", requireAdmin, async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertUserSchema.parse(req.body);
-
-      // Check if user already exists
-      const existingUser = await storage.getUserByUsername(
-        validatedData.username
-      );
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already exists" });
-      }
-
-      // Hash password
-      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
-
-      const user = await storage.createUser({
-        ...validatedData,
-        password: hashedPassword,
-        role: validatedData.role || "teacher",
-      });
-
-      res.json({
-        id: user.id,
-        username: user.username,
-        role: user.role,
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      console.error("Create user error:", error);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
 
   // ========== Board Routes ==========
 
@@ -267,10 +143,10 @@ export async function registerRoutes(
       } else {
         // Get boards where user is creator OR lecturer
         const createdBoards = await storage.getBoardsByCreator(
-          req.session.userId!
+          req.session.userId!,
         );
         const lecturerBoards = await storage.getBoardsByLecturer(
-          req.session.userId!
+          req.session.userId!,
         );
 
         // Merge and deduplicate by board id
@@ -362,7 +238,7 @@ export async function registerRoutes(
         console.error("Get board error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get board info by ID or room code (public - for guest access)
@@ -427,7 +303,7 @@ export async function registerRoutes(
         console.error("Validate guest password error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Update board (creator only)
@@ -457,7 +333,7 @@ export async function registerRoutes(
         console.error("Update board error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Delete board (creator or admin only)
@@ -484,7 +360,7 @@ export async function registerRoutes(
         console.error("Delete board error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Board Data Routes ==========
@@ -512,7 +388,7 @@ export async function registerRoutes(
         console.error("Save board data error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get all board data for a board
@@ -532,7 +408,7 @@ export async function registerRoutes(
         console.error("Get board data error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get specific user's board data
@@ -543,7 +419,7 @@ export async function registerRoutes(
       try {
         const data = await storage.getBoardData(
           req.params.boardId,
-          req.params.userId
+          req.params.userId,
         );
         if (!data) {
           return res.json({
@@ -558,7 +434,7 @@ export async function registerRoutes(
         console.error("Get user board data error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get all teachers (for admin to select lecturer)
@@ -578,7 +454,7 @@ export async function registerRoutes(
           id: t.id,
           username: t.username,
           screenName: t.screenName,
-        }))
+        })),
       );
     } catch (error) {
       console.error("Get teachers error:", error);
@@ -654,7 +530,7 @@ export async function registerRoutes(
         console.error("Update quiz error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Delete quiz
@@ -679,7 +555,7 @@ export async function registerRoutes(
         console.error("Delete quiz error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get quiz session for a board
@@ -699,7 +575,7 @@ export async function registerRoutes(
         console.error("Get quiz session error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get quiz responses for a session (admin only)
@@ -719,7 +595,7 @@ export async function registerRoutes(
         console.error("Get quiz responses error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get quiz responses by quiz ID (admin/teacher only), optionally filtered by boardId
@@ -736,14 +612,14 @@ export async function registerRoutes(
         const boardId = req.query.boardId as string | undefined;
         const responses = await storage.getQuizResponsesByQuizIdAndBoard(
           req.params.id,
-          boardId
+          boardId,
         );
         res.json(responses);
       } catch (error) {
         console.error("Get quiz responses by quiz ID error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Quiz Category Routes ==========
@@ -759,7 +635,7 @@ export async function registerRoutes(
         console.error("Get quiz categories error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   app.post(
@@ -785,7 +661,7 @@ export async function registerRoutes(
         console.error("Create quiz category error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   app.patch(
@@ -805,14 +681,14 @@ export async function registerRoutes(
         }
         const category = await storage.updateQuizCategory(
           req.params.id,
-          name.trim()
+          name.trim(),
         );
         res.json(category);
       } catch (error) {
         console.error("Update quiz category error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   app.delete(
@@ -832,7 +708,7 @@ export async function registerRoutes(
         console.error("Delete quiz category error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Quiz Class Routes ==========
@@ -848,7 +724,7 @@ export async function registerRoutes(
         console.error("Get quiz classes error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   app.post(
@@ -872,7 +748,7 @@ export async function registerRoutes(
         console.error("Create quiz class error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   app.patch(
@@ -892,14 +768,14 @@ export async function registerRoutes(
         }
         const quizClass = await storage.updateQuizClass(
           req.params.id,
-          name.trim()
+          name.trim(),
         );
         res.json(quizClass);
       } catch (error) {
         console.error("Update quiz class error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   app.delete(
@@ -919,7 +795,7 @@ export async function registerRoutes(
         console.error("Delete quiz class error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Student Performance Routes ==========
@@ -950,14 +826,14 @@ export async function registerRoutes(
               roomCode: board?.roomCode,
               boardStartTime: board?.startTime,
             };
-          })
+          }),
         );
         res.json(attendanceWithBoards);
       } catch (error) {
         console.error("Get student attendance error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Get student's quiz responses with quiz details
@@ -994,14 +870,14 @@ export async function registerRoutes(
               roomCode: board?.roomCode,
               boardId: session.boardId,
             };
-          })
+          }),
         );
         res.json(responsesWithDetails.filter(Boolean));
       } catch (error) {
         console.error("Get student quiz responses error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Record student joining a room (called when student enters a board)
@@ -1018,7 +894,7 @@ export async function registerRoutes(
         // Check if there's already an active attendance for this board
         const existing = await storage.getActiveAttendance(
           boardId,
-          req.session.userId!
+          req.session.userId!,
         );
         if (existing && !existing.leftAt) {
           return res.json(existing);
@@ -1034,7 +910,7 @@ export async function registerRoutes(
         console.error("Record student attendance error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Update attendance when student leaves
@@ -1049,14 +925,14 @@ export async function registerRoutes(
           {
             leftAt: new Date(),
             timeSpentSeconds: timeSpentSeconds || 0,
-          }
+          },
         );
         res.json(attendance);
       } catch (error) {
         console.error("Update student attendance error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Teacher Performance Routes ==========
@@ -1112,10 +988,10 @@ export async function registerRoutes(
           boards.map(async (board) => {
             // Get students who joined this room
             const studentAttendance = await storage.getStudentAttendanceByBoard(
-              board.id
+              board.id,
             );
             const uniqueStudents = Array.from(
-              new Set(studentAttendance.map((a) => a.studentId))
+              new Set(studentAttendance.map((a) => a.studentId)),
             );
 
             // Get quiz sessions for this board
@@ -1129,14 +1005,14 @@ export async function registerRoutes(
               const responses = await storage.getQuizResponses(session.id);
               totalQuizResponses += responses.length;
               responses.forEach((r) =>
-                studentsWhoAttemptedQuiz.add(r.participantId)
+                studentsWhoAttemptedQuiz.add(r.participantId),
               );
             }
 
             // Get board data to check two-way board work
             const allBoardData = await storage.getAllBoardData(board.id);
             const teacherBoardData = allBoardData.find(
-              (bd) => bd.userId === teacherId
+              (bd) => bd.userId === teacherId,
             );
             const teacherHasWritten =
               teacherBoardData &&
@@ -1147,7 +1023,7 @@ export async function registerRoutes(
             let twoWayBoardWorkCount = 0;
             for (const studentId of uniqueStudents) {
               const studentBoardData = allBoardData.find(
-                (bd) => bd.userId === studentId
+                (bd) => bd.userId === studentId,
               );
               const studentHasWritten =
                 studentBoardData &&
@@ -1168,12 +1044,12 @@ export async function registerRoutes(
 
             if (studentCount > 0 && quizCount > 0) {
               quizScore = Math.round(
-                (studentsWhoAttemptedQuiz.size / studentCount) * 50
+                (studentsWhoAttemptedQuiz.size / studentCount) * 50,
               );
             }
             if (studentCount > 0) {
               twoWayScore = Math.round(
-                (twoWayBoardWorkCount / studentCount) * 50
+                (twoWayBoardWorkCount / studentCount) * 50,
               );
             }
 
@@ -1181,11 +1057,11 @@ export async function registerRoutes(
 
             // Get teacher duration for this board
             const teacherAttendanceForBoard = teacherAttendance.filter(
-              (a) => a.boardId === board.id
+              (a) => a.boardId === board.id,
             );
             const totalDuration = teacherAttendanceForBoard.reduce(
               (sum, a) => sum + (a.timeSpentSeconds || 0),
-              0
+              0,
             );
 
             return {
@@ -1204,7 +1080,7 @@ export async function registerRoutes(
               twoWayScore,
               participationScore,
             };
-          })
+          }),
         );
 
         res.json({
@@ -1219,7 +1095,7 @@ export async function registerRoutes(
         console.error("Get teacher performance error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Record teacher joining a room
@@ -1243,7 +1119,7 @@ export async function registerRoutes(
         // Check if there's already an active attendance for this board
         const existing = await storage.getActiveTeacherAttendance(
           boardId,
-          req.session.userId!
+          req.session.userId!,
         );
         if (existing && !existing.leftAt) {
           return res.json(existing);
@@ -1259,7 +1135,7 @@ export async function registerRoutes(
         console.error("Record teacher attendance error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Update teacher attendance when leaving
@@ -1274,14 +1150,14 @@ export async function registerRoutes(
           {
             leftAt: new Date(),
             timeSpentSeconds: timeSpentSeconds || 0,
-          }
+          },
         );
         res.json(attendance);
       } catch (error) {
         console.error("Update teacher attendance error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Room Password Routes ==========
@@ -1316,7 +1192,7 @@ export async function registerRoutes(
         console.error("Set password error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Validate room password
@@ -1353,7 +1229,7 @@ export async function registerRoutes(
         console.error("Validate password error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Check if room has password (authenticated)
@@ -1390,7 +1266,7 @@ export async function registerRoutes(
         console.error("Check password error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // Public board info for guests (no auth required)
@@ -1424,7 +1300,7 @@ export async function registerRoutes(
         console.error("Public info error:", error);
         res.status(500).json({ error: "Internal server error" });
       }
-    }
+    },
   );
 
   // ========== Audio Recording Routes ==========
@@ -1474,7 +1350,7 @@ export async function registerRoutes(
         console.error("Start recording error:", error);
         res.status(500).json({ error: "Failed to start recording" });
       }
-    }
+    },
   );
 
   // Stop recording and transcribe
@@ -1512,9 +1388,8 @@ export async function registerRoutes(
         // Transcribe the audio using Gemini
         let transcriptText = "";
         try {
-          const { transcribeAudio } = await import(
-            "./replit_integrations/audio"
-          );
+          const { transcribeAudio } =
+            await import("./replit_integrations/audio");
           transcriptText = await transcribeAudio(audioData);
         } catch (transcriptionError) {
           console.error("Transcription error:", transcriptionError);
@@ -1537,7 +1412,7 @@ export async function registerRoutes(
         console.error("Stop recording error:", error);
         res.status(500).json({ error: "Failed to stop recording" });
       }
-    }
+    },
   );
 
   // Get recordings for a board
@@ -1547,14 +1422,14 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       try {
         const recordings = await storage.getRecordingsByBoard(
-          req.params.boardId
+          req.params.boardId,
         );
         res.json(recordings);
       } catch (error) {
         console.error("Get recordings error:", error);
         res.status(500).json({ error: "Failed to get recordings" });
       }
-    }
+    },
   );
 
   // Get transcript for a recording
@@ -1564,7 +1439,7 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       try {
         const transcript = await storage.getTranscriptByRecording(
-          req.params.recordingId
+          req.params.recordingId,
         );
         if (!transcript) {
           return res.status(404).json({ error: "Transcript not found" });
@@ -1574,7 +1449,7 @@ export async function registerRoutes(
         console.error("Get transcript error:", error);
         res.status(500).json({ error: "Failed to get transcript" });
       }
-    }
+    },
   );
 
   // ========== AI Chat Session Routes ==========
@@ -1609,7 +1484,7 @@ export async function registerRoutes(
         console.error("Create chat session error:", error);
         res.status(500).json({ error: "Failed to create chat session" });
       }
-    }
+    },
   );
 
   // Start a chat session (admin only)
@@ -1637,7 +1512,7 @@ export async function registerRoutes(
         console.error("Start chat session error:", error);
         res.status(500).json({ error: "Failed to start chat session" });
       }
-    }
+    },
   );
 
   // Get active chat session for a board
@@ -1646,7 +1521,7 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       try {
         const session = await storage.getActiveAiChatSession(
-          req.params.boardId
+          req.params.boardId,
         );
         if (!session) {
           return res.json(null);
@@ -1656,7 +1531,7 @@ export async function registerRoutes(
         console.error("Get active chat session error:", error);
         res.status(500).json({ error: "Failed to get active chat session" });
       }
-    }
+    },
   );
 
   // Get all chat sessions for a board
@@ -1666,14 +1541,14 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       try {
         const sessions = await storage.getAiChatSessionsByBoard(
-          req.params.boardId
+          req.params.boardId,
         );
         res.json(sessions);
       } catch (error) {
         console.error("Get chat sessions error:", error);
         res.status(500).json({ error: "Failed to get chat sessions" });
       }
-    }
+    },
   );
 
   // Get participants for a chat session (admin)
@@ -1683,14 +1558,14 @@ export async function registerRoutes(
     async (req: Request, res: Response) => {
       try {
         const participants = await storage.getAiChatParticipants(
-          req.params.sessionId
+          req.params.sessionId,
         );
         res.json(participants);
       } catch (error) {
         console.error("Get chat participants error:", error);
         res.status(500).json({ error: "Failed to get participants" });
       }
-    }
+    },
   );
 
   // Join a chat session (student)
@@ -1709,7 +1584,7 @@ export async function registerRoutes(
         // Check if already joined
         const existing = await storage.getAiChatParticipant(
           req.params.sessionId,
-          participantId
+          participantId,
         );
         if (existing) {
           return res.json(existing);
@@ -1728,7 +1603,7 @@ export async function registerRoutes(
         console.error("Join chat session error:", error);
         res.status(500).json({ error: "Failed to join chat session" });
       }
-    }
+    },
   );
 
   // Send message and get AI response (student)
@@ -1762,7 +1637,7 @@ export async function registerRoutes(
         // Get conversation history
         const messages = await storage.getAiChatMessages(
           sessionId,
-          participantId
+          participantId,
         );
 
         // Set up SSE for streaming
@@ -1793,12 +1668,12 @@ export async function registerRoutes(
             // Use board image with Gemini vision
             // Detect MIME type from data URL
             const mimeMatch = session.boardImageData.match(
-              /^data:(image\/\w+);base64,/
+              /^data:(image\/\w+);base64,/,
             );
             const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
             const base64Data = session.boardImageData.replace(
               /^data:image\/\w+;base64,/,
-              ""
+              "",
             );
 
             // Build the prompt with context if available
@@ -1844,7 +1719,7 @@ Begin by greeting the student and asking your first question about the material 
           } else if (session.transcriptId) {
             // Fall back to transcript if available
             const transcript = await storage.getTranscriptByRecording(
-              session.transcriptId
+              session.transcriptId,
             );
             const transcriptContext = transcript?.transcriptText || "";
             const systemPrompt = transcriptContext
@@ -1926,7 +1801,7 @@ Begin by greeting the student and asking your first question about the material 
           res.write(
             `data: ${JSON.stringify({
               error: "Failed to get AI response",
-            })}\n\n`
+            })}\n\n`,
           );
           res.end();
         }
@@ -1934,14 +1809,14 @@ Begin by greeting the student and asking your first question about the material 
         console.error("Send chat message error:", error);
         if (res.headersSent) {
           res.write(
-            `data: ${JSON.stringify({ error: "Failed to send message" })}\n\n`
+            `data: ${JSON.stringify({ error: "Failed to send message" })}\n\n`,
           );
           res.end();
         } else {
           res.status(500).json({ error: "Failed to send message" });
         }
       }
-    }
+    },
   );
 
   // Get chat messages for a participant
@@ -1951,14 +1826,14 @@ Begin by greeting the student and asking your first question about the material 
       try {
         const messages = await storage.getAiChatMessages(
           req.params.sessionId,
-          req.params.participantId
+          req.params.participantId,
         );
         res.json(messages);
       } catch (error) {
         console.error("Get chat messages error:", error);
         res.status(500).json({ error: "Failed to get messages" });
       }
-    }
+    },
   );
 
   // Complete a chat session
@@ -1976,7 +1851,7 @@ Begin by greeting the student and asking your first question about the material 
         console.error("Complete chat session error:", error);
         res.status(500).json({ error: "Failed to complete chat session" });
       }
-    }
+    },
   );
 
   // Calculate understanding score for a participant
@@ -1988,9 +1863,8 @@ Begin by greeting the student and asking your first question about the material 
         const { sessionId, participantRowId } = req.params;
 
         // Look up the participant record by row ID to get the user's participantId
-        const participant = await storage.getAiChatParticipantById(
-          participantRowId
-        );
+        const participant =
+          await storage.getAiChatParticipantById(participantRowId);
         if (!participant) {
           return res.status(404).json({ error: "Participant not found" });
         }
@@ -1998,7 +1872,7 @@ Begin by greeting the student and asking your first question about the material 
         // Get all messages for this participant (using the user's participantId)
         const messages = await storage.getAiChatMessages(
           sessionId,
-          participant.participantId
+          participant.participantId,
         );
 
         if (messages.length === 0) {
@@ -2019,7 +1893,7 @@ Begin by greeting the student and asking your first question about the material 
 
         if (session?.transcriptId) {
           const transcript = await storage.getLectureTranscript(
-            session.transcriptId
+            session.transcriptId,
           );
           if (transcript) {
             transcriptContext = transcript.transcriptText.substring(0, 2000);
@@ -2093,7 +1967,7 @@ Respond in exactly this JSON format:
         console.error("Calculate understanding score error:", error);
         res.status(500).json({ error: "Failed to calculate score" });
       }
-    }
+    },
   );
 
   // ========== WebSocket Server ==========
@@ -2119,7 +1993,7 @@ Respond in exactly this JSON format:
     // Use URL parser to handle cases like "/ws?token=..." which request.url misses
     const pathname = new URL(
       request.url || "",
-      `http://${request.headers.host}`
+      `http://${request.headers.host}`,
     ).pathname;
 
     if (pathname !== "/ws") {
@@ -2164,7 +2038,7 @@ Respond in exactly this JSON format:
               clearTimeout(pendingDisconnect);
               pendingDisconnects.delete(disconnectKey);
               console.log(
-                `[WS] Cancelled pending disconnect for ${user.name} in room ${roomCode}`
+                `[WS] Cancelled pending disconnect for ${user.name} in room ${roomCode}`,
               );
             }
 
@@ -2232,7 +2106,7 @@ Respond in exactly this JSON format:
                   user.name
                 } reconnected to room ${roomCode}, was viewing: ${
                   existingParticipant.viewingUserId || "own board"
-                }`
+                }`,
               );
             }
 
@@ -2254,7 +2128,7 @@ Respond in exactly this JSON format:
                 JSON.stringify({
                   type: "restoreViewingState",
                   viewingUserId: participant.viewingUserId,
-                })
+                }),
               );
             }
 
@@ -2266,7 +2140,7 @@ Respond in exactly this JSON format:
                   type: "focus",
                   targetUserId: focusState.focusedUserId,
                   focusedBy: "system",
-                })
+                }),
               );
             } else if (isCreatorAdmin) {
               // Default: focus on admin's board when room is new or has no focus
@@ -2282,7 +2156,7 @@ Respond in exactly this JSON format:
                       type: "focus",
                       targetUserId: user.id,
                       focusedBy: user.id,
-                    })
+                    }),
                   );
                 }
               });
@@ -2301,7 +2175,7 @@ Respond in exactly this JSON format:
                     JSON.stringify({
                       type: "sessionState",
                       isEnded: false,
-                    })
+                    }),
                   );
                 }
               });
@@ -2310,7 +2184,7 @@ Respond in exactly this JSON format:
                 JSON.stringify({
                   type: "sessionState",
                   isEnded: true,
-                })
+                }),
               );
             }
 
@@ -2329,7 +2203,7 @@ Respond in exactly this JSON format:
                       isAdmin: participant.isAdmin,
                       isPublic: participant.isPublic,
                     },
-                  })
+                  }),
                 );
               }
             });
@@ -2356,7 +2230,7 @@ Respond in exactly this JSON format:
                       userId: participantId,
                       isPublic: participant.isPublic,
                       isAdmin: participant.isAdmin,
-                    })
+                    }),
                   );
                 }
               });
@@ -2414,7 +2288,7 @@ Respond in exactly this JSON format:
                     name: data.name,
                     isPointer: data.isPointer,
                     viewingUserId: data.viewingUserId,
-                  })
+                  }),
                 );
               }
             });
@@ -2433,7 +2307,7 @@ Respond in exactly this JSON format:
                     type: "draw",
                     userId: participantId,
                     line: data.line,
-                  })
+                  }),
                 );
               }
             });
@@ -2451,7 +2325,7 @@ Respond in exactly this JSON format:
                 JSON.stringify({
                   type: "boardRequest",
                   requesterId: participantId,
-                })
+                }),
               );
             }
             break;
@@ -2469,7 +2343,7 @@ Respond in exactly this JSON format:
                   type: "boardData",
                   userId: participantId,
                   lines: data.lines,
-                })
+                }),
               );
             }
             break;
@@ -2490,7 +2364,7 @@ Respond in exactly this JSON format:
               currentRoomCode,
               data.userId,
               userName,
-              data.lines || []
+              data.lines || [],
             );
 
             room.forEach((p, id) => {
@@ -2500,7 +2374,7 @@ Respond in exactly this JSON format:
                     type: "boardUpdate",
                     userId: data.userId,
                     lines: data.lines,
-                  })
+                  }),
                 );
               }
             });
@@ -2531,7 +2405,7 @@ Respond in exactly this JSON format:
                   JSON.stringify({
                     type: "sessionState",
                     isEnded,
-                  })
+                  }),
                 );
               }
             });
@@ -2576,7 +2450,7 @@ Respond in exactly this JSON format:
                           userId: focusState!.focusedUserId,
                           isPublic: focusState!.originalVisibility,
                           isAdmin: prevFocused.isAdmin,
-                        })
+                        }),
                       );
                     }
                   });
@@ -2600,7 +2474,7 @@ Respond in exactly this JSON format:
                         userId: targetUserId,
                         isPublic: true,
                         isAdmin: target.isAdmin,
-                      })
+                      }),
                     );
                   }
                 });
@@ -2624,7 +2498,7 @@ Respond in exactly this JSON format:
                           userId: focusState!.focusedUserId,
                           isPublic: focusState!.originalVisibility,
                           isAdmin: prevFocused.isAdmin,
-                        })
+                        }),
                       );
                     }
                   });
@@ -2643,7 +2517,7 @@ Respond in exactly this JSON format:
                     type: "focus",
                     targetUserId: targetUserId,
                     focusedBy: participantId,
-                  })
+                  }),
                 );
               }
             });
@@ -2668,7 +2542,7 @@ Respond in exactly this JSON format:
                   JSON.stringify({
                     type: "sidebarToggle",
                     isOpen,
-                  })
+                  }),
                 );
               }
             });
@@ -2693,7 +2567,7 @@ Respond in exactly this JSON format:
                   JSON.stringify({
                     type: "chatSession",
                     session,
-                  })
+                  }),
                 );
               }
             });
@@ -2715,7 +2589,7 @@ Respond in exactly this JSON format:
                 p.ws.send(
                   JSON.stringify({
                     type: "chatSessionEnded",
-                  })
+                  }),
                 );
               }
             });
@@ -2765,7 +2639,7 @@ Respond in exactly this JSON format:
                       sessionId: session.id,
                       quiz: quiz,
                       closesAt: closesAt.toISOString(),
-                    })
+                    }),
                   );
                 }
               });
@@ -2784,7 +2658,7 @@ Respond in exactly this JSON format:
                         JSON.stringify({
                           type: "quiz:ended",
                           sessionId: session.id,
-                        })
+                        }),
                       );
                     }
                   });
@@ -2811,7 +2685,7 @@ Respond in exactly this JSON format:
                 p.ws.send(
                   JSON.stringify({
                     type: "quiz:closed",
-                  })
+                  }),
                 );
               }
             });
@@ -2854,7 +2728,7 @@ Respond in exactly this JSON format:
                       answer,
                       isCorrect,
                       submittedAt: new Date().toISOString(),
-                    })
+                    }),
                   );
                 }
               });
@@ -2885,7 +2759,7 @@ Respond in exactly this JSON format:
               room.forEach((p) => {
                 if (p.ws.readyState === WebSocket.OPEN) {
                   const myResponse = responses.find(
-                    (r) => r.participantId === p.id
+                    (r) => r.participantId === p.id,
                   );
                   p.ws.send(
                     JSON.stringify({
@@ -2893,7 +2767,7 @@ Respond in exactly this JSON format:
                       sessionId,
                       isCorrect: myResponse?.isCorrect || false,
                       answer: myResponse?.answer || null,
-                    })
+                    }),
                   );
                 }
               });
@@ -2932,7 +2806,7 @@ Respond in exactly this JSON format:
                       type: "quiz:leaderboard",
                       sessionId,
                       topParticipants: top5,
-                    })
+                    }),
                   );
                 }
               });
@@ -2956,14 +2830,14 @@ Respond in exactly this JSON format:
             try {
               const responses = await storage.getQuizResponsesByQuizIdAndBoard(
                 quizId,
-                boardId
+                boardId,
               );
 
               // Send each participant their own result
               room.forEach((p) => {
                 if (p.ws.readyState === WebSocket.OPEN) {
                   const myResponse = responses.find(
-                    (r) => r.participantId === p.id
+                    (r) => r.participantId === p.id,
                   );
                   p.ws.send(
                     JSON.stringify({
@@ -2971,7 +2845,7 @@ Respond in exactly this JSON format:
                       quizId,
                       isCorrect: myResponse?.isCorrect || false,
                       answer: myResponse?.answer || null,
-                    })
+                    }),
                   );
                 }
               });
@@ -2995,7 +2869,7 @@ Respond in exactly this JSON format:
             try {
               const responses = await storage.getQuizResponsesByQuizIdAndBoard(
                 quizId,
-                boardId
+                boardId,
               );
 
               // Get top 5 correct answers
@@ -3010,7 +2884,7 @@ Respond in exactly this JSON format:
                       type: "quiz:leaderboard",
                       quizId,
                       topParticipants: top5,
-                    })
+                    }),
                   );
                 }
               });
@@ -3033,9 +2907,8 @@ Respond in exactly this JSON format:
 
             try {
               // Get all responses for this board
-              const allResponses = await storage.getQuizResponsesByBoardId(
-                boardId
-              );
+              const allResponses =
+                await storage.getQuizResponsesByBoardId(boardId);
 
               // Aggregate correct answers per participant
               const scoreMap = new Map<
@@ -3075,7 +2948,7 @@ Respond in exactly this JSON format:
                     JSON.stringify({
                       type: "quiz:cumulativeLeaderboard",
                       topParticipants: topWithScores,
-                    })
+                    }),
                   );
                 }
               });
@@ -3118,7 +2991,7 @@ Respond in exactly this JSON format:
           console.log(
             `[WS] ${wasAdmin ? "Admin" : "User"} ${
               leavingUser?.name || participantId
-            } disconnected, starting ${gracePeriod / 1000}s grace period`
+            } disconnected, starting ${gracePeriod / 1000}s grace period`,
           );
 
           const disconnectTimer = setTimeout(async () => {
@@ -3133,15 +3006,14 @@ Respond in exactly this JSON format:
                 stillDisconnected.ws.readyState !== WebSocket.OPEN
               ) {
                 console.log(
-                  `[WS] Grace period expired for ${stillDisconnected.name}, removing from room`
+                  `[WS] Grace period expired for ${stillDisconnected.name}, removing from room`,
                 );
                 currentRoom.delete(capturedParticipantId);
 
                 // If admin's grace period expired, end the session
                 if (capturedWasAdmin && currentRoom.size > 0) {
-                  const board = await storage.getBoardByRoomCode(
-                    capturedRoomCode
-                  );
+                  const board =
+                    await storage.getBoardByRoomCode(capturedRoomCode);
                   if (board) {
                     await storage.updateBoard(board.id, { isEnded: true });
                   }
@@ -3152,7 +3024,7 @@ Respond in exactly this JSON format:
                         JSON.stringify({
                           type: "sessionState",
                           isEnded: true,
-                        })
+                        }),
                       );
                     }
                   });
@@ -3164,7 +3036,7 @@ Respond in exactly this JSON format:
                       JSON.stringify({
                         type: "userLeft",
                         userId: capturedParticipantId,
-                      })
+                      }),
                     );
                   }
                 });

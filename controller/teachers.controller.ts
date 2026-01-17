@@ -4,6 +4,7 @@ import { usersStorage } from "../storage/index.storage";
 
 export const getAllTeachers = asyncHandler(
   async (req: Request, res: Response) => {
-    const teachers = usersStorage.getUsersByRole("teacher");
-  }
+    // const teachers = usersStorage.getUsersByRole("teacher");
+    return;
+  },
 );
