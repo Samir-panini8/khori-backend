@@ -68,5 +68,22 @@ export const ChangePassword = asyncHandler(
     await usersStorage.updatePassword(user.id, hashedPassword);
 
     res.json({ success: true });
-  }
+  },
+);
+
+// Check session
+export const CheckSession = asyncHandler(
+  async (req: Request, res: Response) => {
+    const user = await usersStorage.getById(req.session.userId!);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      screenName: user.screenName,
+    });
+  },
 );
